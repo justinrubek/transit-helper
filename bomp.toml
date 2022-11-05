@@ -1,0 +1,2 @@
+[file."crates/cli-test/Cargo.toml"]
+search_value = "cli-test"
