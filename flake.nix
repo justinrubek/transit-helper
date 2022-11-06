@@ -80,7 +80,7 @@
         };
         devShells = {
           default = pkgs.mkShell rec {
-            buildInputs = [rust-environment pkgs.rustfmt pkgs.cocogitto pkgs.protobuf bomper-cli];
+            buildInputs = [rust-environment pkgs.rustfmt pkgs.cocogitto pkgs.bacon pkgs.protobuf bomper-cli];
             nativeBuildInputs = [pkgs.pkgconfig pkgs.openssl pkgs.openssl.dev];
           };
         };
