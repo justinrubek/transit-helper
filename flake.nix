@@ -74,7 +74,7 @@
         rustPackage = craneLib.buildPackage ({
           pname = "transit-test";
           cargoArtifacts = deps-only;
-          cargoExtraArgs = "--bin cli-test";
+          cargoExtraArgs = "--bin cli";
         } // common-build-args);
 
         rust-environment = inputs'.fenix.packages.latest.toolchain;

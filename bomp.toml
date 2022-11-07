@@ -1,2 +1,2 @@
-[file."crates/cli-test/Cargo.toml"]
-search_value = "cli-test"
+[file."crates/cli/Cargo.toml"]
+search_value = "cli"
