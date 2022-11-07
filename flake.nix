@@ -42,12 +42,19 @@
         lib,
         ...
       }: let
+        nativeBuildInputs = [pkgs.pkgconfig pkgs.openssl pkgs.openssl.dev];
+        PROTOC = "${pkgs.protobuf}/bin/protoc";
+        PROTOC_INCLUDE = "${pkgs.protobuf}/include";
+
         craneLib = crane.lib.${system};
         common-build-args = rec {
           src = lib.cleanSourceWith {
             src = ./.;
           };
           pname = "transit";
+
+          inherit nativeBuildInputs;
+          inherit PROTOC PROTOC_INCLUDE;
         };
         deps-only = craneLib.buildDepsOnly ({
           pname = "transit";
