@@ -15,6 +15,8 @@ pub enum Commands {
     LogPositionData {
         /// The path to the file to store the data in
         #[arg(short, long)]
-        path: PathBuf,
+        path: String,
     },
+    /// Fetch and display the current position data
+    PrintPositionData,
 }

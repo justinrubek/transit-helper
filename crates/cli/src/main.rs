@@ -1,17 +1,25 @@
+use std::path::{PathBuf, Path};
 use clap::Parser;
 use gtfs_rt::{FeedEntity, Position};
 use prost::Message;
-use tokio::spawn;
+use serde::{Deserialize, Serialize};
+use tokio::{spawn, fs::File, io::AsyncWriteExt};
 use tokio_schedule::{every, Job};
 
 mod cli;
 
 use cli::Cli;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
+struct PositionData {
+    latitude: f32,
+    longitude: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct VehicleData {
     route: String,
-    position: Position,
+    position: PositionData,
 }
 
 fn get_dart_route(feed: FeedEntity) -> Option<VehicleData> {
@@ -33,21 +41,70 @@ fn get_dart_route(feed: FeedEntity) -> Option<VehicleData> {
         return None;
     };
 
+    let position = if let Some(position) = vehicle.position {
+        position
+    } else {
+        return None;
+    };
+
     Some(VehicleData {
         route: route_id,
-        position: vehicle.position.unwrap(),
+        position: PositionData {
+            latitude: position.latitude,
+            longitude: position.longitude,
+        },
     })
 }
 
-async fn log_position_data(path: String) {
-    // Fetch the data immediately once
-    retrieve_data().await;
+struct PositionLogger {
+    client: reqwest::Client,
+}
 
-    let job = every(30)
-        .seconds()
-        .perform(retrieve_data);
+impl PositionLogger {
+    fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
 
-    job.await;
+    async fn log_position_data(&self, path: &str) {
+        // Fetch the data immediately once
+        self.retrieve_data(path).await;
+
+        let job = every(30)
+            .seconds()
+            .perform(|| self.retrieve_data(path));
+
+        job.await;
+    }
+
+    async fn retrieve_data(&self, path: &str) {
+        let position_resp = self.client.get("https://www.ridedart.com/gtfs/real-time/vehicle-positions").send().await.unwrap();
+
+        let data = position_resp.bytes().await.unwrap();
+        let message = gtfs_rt::FeedMessage::decode(data).unwrap();
+
+        // convert timestamp to iso8601
+        let timestamp: i64 = message.header.timestamp.unwrap().try_into().unwrap();
+        let datetime = chrono::DateTime::<chrono::Utc>::from_utc(
+            chrono::NaiveDateTime::from_timestamp(timestamp, 0),
+            chrono::Utc,
+        );
+        let file_name = format!("{}.json", datetime.format("%Y-%m-%dT%H:%M:%S"));
+
+        let file_path = Path::new(path).join(file_name);
+
+        println!("Writing to file: {}", file_path.display());
+        let mut file = File::create(file_path).await.unwrap();
+        let route_data = message
+            .entity
+            .into_iter()
+            .filter_map(get_dart_route)
+            .collect::<Vec<_>>();
+
+        let json = serde_json::to_string(&route_data).unwrap();
+        file.write_all(json.as_bytes()).await.unwrap();
+    }
 }
 
 #[tokio::main]
@@ -56,30 +113,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Some(cli::Commands::LogPositionData { path }) => {
-            log_position_data(path.to_str().unwrap().to_string()).await;
+            let logger = PositionLogger::new();
+            logger.log_position_data(&path).await;
+        }
+        Some(cli::Commands::PrintPositionData) => {
+            // retrieve and display the current position data
+            let resp = reqwest::get("https://www.ridedart.com/gtfs/real-time/vehicle-positions").await?;
+            let data = resp.bytes().await?;
+            let message = gtfs_rt::FeedMessage::decode(data).unwrap();
+
+            let route_data = message
+                .entity
+                .into_iter()
+                .filter_map(get_dart_route)
+                .collect::<Vec<_>>();
+
+            println!("{:#?}", route_data);
         }
         _ => unimplemented!(),
     };
 
     Ok(())
-}
-
-async fn retrieve_data() {
-    let client = reqwest::Client::new();
-
-    let position_resp = client.get("https://www.ridedart.com/gtfs/real-time/vehicle-positions").send().await.unwrap();
-
-    let data = position_resp.bytes().await.unwrap();
-    let message = gtfs_rt::FeedMessage::decode(data).unwrap();
-    // println!("{:?}", message);
-
-    // print message.header info
-    println!("timestamp: {:?}", message.header.timestamp);
-
-    println!("entity count: {}", message.entity.len());
-    message.entity.iter().for_each(|entity| {
-        if let Some(route_data) = get_dart_route(entity.clone()) {
-            println!("route {} at {:?}", route_data.route, route_data.position);
-        }
-    });
 }
