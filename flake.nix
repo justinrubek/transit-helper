@@ -87,7 +87,7 @@
         apps = {
           cli = {
             type = "app";
-            program = "${packages.cli}/bin/cli-test";
+            program = "${packages.cli}/bin/cli";
           };
           default = apps.cli;
         };

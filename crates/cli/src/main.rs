@@ -1,7 +1,12 @@
+use clap::Parser;
 use gtfs_rt::{FeedEntity, Position};
 use prost::Message;
 use tokio::spawn;
 use tokio_schedule::{every, Job};
+
+mod cli;
+
+use cli::Cli;
 
 #[derive(Debug)]
 struct VehicleData {
@@ -34,16 +39,27 @@ fn get_dart_route(feed: FeedEntity) -> Option<VehicleData> {
     })
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn log_position_data(path: String) {
+    // Fetch the data immediately once
+    retrieve_data().await;
+
     let job = every(30)
         .seconds()
         .perform(retrieve_data);
 
-    // Perform the job immediately once
-    retrieve_data().await;
-
     job.await;
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(cli::Commands::LogPositionData { path }) => {
+            log_position_data(path.to_str().unwrap().to_string()).await;
+        }
+        _ => unimplemented!(),
+    };
 
     Ok(())
 }
