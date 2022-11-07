@@ -10,3 +10,4 @@ gtfs-rt = "0.2.1"
 prost = "0.8"
 reqwest = { version = "0.11.12", features = ["rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
+tokio_schedule = "0.3.0"
